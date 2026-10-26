@@ -5,13 +5,12 @@ on:
 
 jobs:
   build-ipa:
-    runs-on: macos-26  # Uses macOS 26 runner with Xcode and SDK support
+    runs-on: macos-26  # Uses macOS runner with Xcode and SDK support
     
     steps:
-      - name: Checkout Repository at Fix Commit
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          ref: 'd158df611bf2f3fa315c4f16585575cdfdb2a1d3'
           submodules: recursive
 
       - name: Select Xcode 26
