@@ -74,38 +74,52 @@ jobs:
           import glob
           import subprocess
 
-          # Print help info to log for safety
-          print("--- romfs_arc.py pack help info ---")
-          subprocess.run(["python3", "dm/tools/romfs_arc.py", "pack", "--help"])
-          print("-----------------------------------")
-
           build_dirs = glob.glob("workspace/*_build")
+          print(f"Found build directories: {build_dirs}")
+
           romfs_src = None
+          # Search specifically for a directory named 'romfs' or containing raw assets
           for bdir in build_dirs:
               for root, dirs, files in os.walk(bdir):
-                  if "romfs" in dirs:
+                  if os.path.basename(root).lower() == "romfs" and "workspace/romfs" not in root:
+                      romfs_src = root
+                      break
+                  if "romfs" in [d.lower() for d in dirs]:
                       candidate = os.path.join(root, "romfs")
                       if "workspace/romfs" not in candidate:
-                        romfs_src = candidate
-                        break
+                          romfs_src = candidate
+                          break
               if romfs_src:
                   break
 
+          # Fallback: check inside extract folders for romfs or data root
           if not romfs_src:
+              for bdir in build_dirs:
+                  extract_subdirs = glob.glob(os.path.join(bdir, "extract", "*", "*"))
+                  for sub in extract_subdirs:
+                      if os.path.basename(sub).lower() == "romfs":
+                          romfs_src = sub
+                          break
+                  if romfs_src:
+                      break
+
+          if not romfs_src:
+              # Fallback to extract dir if no explicit romfs directory exists
               extracts = glob.glob("workspace/*_build/extract/*")
               if extracts:
                   romfs_src = extracts[0]
 
           print(f"Selected RomFS source path: {romfs_src}")
+          print("Contents of source path:", os.listdir(romfs_src) if os.path.exists(romfs_src) else "Path does not exist")
 
           if romfs_src and os.path.exists(romfs_src):
               os.makedirs("workspace/romfs", exist_ok=True)
-              # Invoking with positional paths based on upstream syntax
               subprocess.run([
                   "python3", "dm/tools/romfs_arc.py", "pack", 
                   "workspace/romfs/romfs", romfs_src, "--shard-mib", "200"
               ], check=True)
               print("RomFS packed successfully!")
+              print("Generated files in workspace/romfs:", os.listdir("workspace/romfs"))
           else:
               raise FileNotFoundError("Could not find a valid source directory to pack into RomFS shards.")
           EOF
