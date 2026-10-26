@@ -69,19 +69,45 @@ jobs:
       - name: Pack RomFS Shards
         run: |
           source venv/bin/activate
-          
-          # Dynamically locate the extracted romfs directory inside the build workspace
-          ROMFS_SRC=$(find workspace/*_build -type d -name "romfs" | head -n 1)
-          
-          echo "Found RomFS source at: $ROMFS_SRC"
-          
-          if [ -n "$ROMFS_SRC" ] && [ -d "$ROMFS_SRC" ]; then
-            mkdir -p workspace/romfs
-            python3 dm/tools/romfs_arc.py pack "$ROMFS_SRC" --shard-mib 200 -o workspace/romfs
-          else
-            echo "Error: RomFS source directory not found!"
-            exit 1
-          fi
+          python3 - << 'EOF'
+          import os
+          import glob
+          import subprocess
+
+          print("Searching workspace for extraction targets...")
+          build_dirs = glob.glob("workspace/*_build")
+          print(f"Found build directories: {build_dirs}")
+
+          romfs_src = None
+          for bdir in build_dirs:
+              for root, dirs, files in os.walk(bdir):
+                  if "romfs" in dirs:
+                      candidate = os.path.join(root, "romfs")
+                      # Make sure it's not our output directory
+                      if "workspace/romfs" not in candidate:
+                          romfs_src = candidate
+                          break
+              if romfs_src:
+                  break
+
+          # Fallback to the extract version directory if an explicit romfs subfolder wasn't found
+          if not romfs_src:
+              extracts = glob.glob("workspace/*_build/extract/*")
+              if extracts:
+                  romfs_src = extracts[0]
+
+          print(f"Selected RomFS source path: {romfs_src}")
+
+          if romfs_src and os.path.exists(romfs_src):
+              os.makedirs("workspace/romfs", exist_ok=True)
+              subprocess.run([
+                  "python3", "dm/tools/romfs_arc.py", "pack", 
+                  romfs_src, "--shard-mib", "200", "-o", "workspace/romfs"
+              ], check=True)
+              print("RomFS packed successfully!")
+          else:
+              raise FileNotFoundError("Could not find a valid source directory to pack into RomFS shards.")
+          EOF
 
       - name: Upload Complete Build & RomFS Assets
         uses: actions/upload-artifact@v4
