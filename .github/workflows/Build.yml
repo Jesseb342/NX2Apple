@@ -61,72 +61,16 @@ jobs:
               gdown.download(update_url, "workspace/update.nsp")
           EOF
 
-      - name: Run NX2Apple Build Script
+      - name: Run NX2Apple Build Script with Full RomFS Packing
+        env:
+          DM_FULL_ROMFS: "1"
         run: |
           source venv/bin/activate
           python3 scripts/build_ipa_from_nsp.py workspace -k keys/prod.keys
 
-      - name: Pack RomFS Shards
-        run: |
-          source venv/bin/activate
-          python3 - << 'EOF'
-          import os
-          import glob
-          import subprocess
-
-          build_dirs = glob.glob("workspace/*_build")
-          print(f"Found build directories: {build_dirs}")
-
-          romfs_src = None
-          # Search specifically for a directory named 'romfs' or containing raw assets
-          for bdir in build_dirs:
-              for root, dirs, files in os.walk(bdir):
-                  if os.path.basename(root).lower() == "romfs" and "workspace/romfs" not in root:
-                      romfs_src = root
-                      break
-                  if "romfs" in [d.lower() for d in dirs]:
-                      candidate = os.path.join(root, "romfs")
-                      if "workspace/romfs" not in candidate:
-                          romfs_src = candidate
-                          break
-              if romfs_src:
-                  break
-
-          # Fallback: check inside extract folders for romfs or data root
-          if not romfs_src:
-              for bdir in build_dirs:
-                  extract_subdirs = glob.glob(os.path.join(bdir, "extract", "*", "*"))
-                  for sub in extract_subdirs:
-                      if os.path.basename(sub).lower() == "romfs":
-                          romfs_src = sub
-                          break
-                  if romfs_src:
-                      break
-
-          if not romfs_src:
-              # Fallback to extract dir if no explicit romfs directory exists
-              extracts = glob.glob("workspace/*_build/extract/*")
-              if extracts:
-                  romfs_src = extracts[0]
-
-          print(f"Selected RomFS source path: {romfs_src}")
-          print("Contents of source path:", os.listdir(romfs_src) if os.path.exists(romfs_src) else "Path does not exist")
-
-          if romfs_src and os.path.exists(romfs_src):
-              os.makedirs("workspace/romfs", exist_ok=True)
-              subprocess.run([
-                  "python3", "dm/tools/romfs_arc.py", "pack", 
-                  "workspace/romfs/romfs", romfs_src, "--shard-mib", "200"
-              ], check=True)
-              print("RomFS packed successfully!")
-              print("Generated files in workspace/romfs:", os.listdir("workspace/romfs"))
-          else:
-              raise FileNotFoundError("Could not find a valid source directory to pack into RomFS shards.")
-          EOF
-
-      - name: Upload Complete Build & RomFS Assets
+      - name: Upload Built IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: patricks-parabox-complete-package
-          path: workspace/
+          name: patricks-parabox-full-ipa
+          path: workspace/*.ipa
           retention-days: 3
