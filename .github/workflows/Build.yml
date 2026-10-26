@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-ipa:
-    runs-on: macos-26  # Uses the modern macOS 26 runner with Xcode 26 / iOS 26 SDK support
+    runs-on: macos-26  # Uses macOS 26 runner with Xcode 26 / iOS 26 SDK support
     
     steps:
       - name: Checkout Repository
@@ -66,9 +66,9 @@ jobs:
           source venv/bin/activate
           python3 scripts/build_ipa_from_nsp.py workspace -k keys/prod.keys
 
-      - name: Upload Built IPA Artifact
+      - name: Upload Complete Build & RomFS Assets
         uses: actions/upload-artifact@v4
         with:
-          name: game-ipa
-          path: workspace/*.ipa
+          name: patricks-parabox-complete-package
+          path: workspace/
           retention-days: 3
