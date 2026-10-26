@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-ipa:
-    runs-on: macos-14  # (You can use macos-13 or macos-15 if preferred)
+    runs-on: macos-14
     
     steps:
       - name: Checkout Repository
@@ -29,23 +29,32 @@ jobs:
           mkdir -p workspace keys
 
       - name: Download Files from Google Drive Secrets
+        env:
+          KEYS_URL: ${{ secrets.KEYS_URL }}
+          GAME_URL: ${{ secrets.GAME_URL }}
+          UPDATE_URL: ${{ secrets.UPDATE_URL }}
         run: |
           source venv/bin/activate
-          
-          # Download prod.keys
-          if [ -n "${{ secrets.KEYS_URL }}" ]; then
-            python3 -m gdown "${{ secrets.KEYS_URL }}" -O keys/prod.keys --fuzzy
-          fi
+          python3 - << 'EOF'
+          import os
+          import gdown
 
-          # Download Base Game NSP/XCI
-          if [ -n "${{ secrets.GAME_URL }}" ]; then
-            python3 -m gdown "${{ secrets.GAME_URL }}" -O workspace/base.nsp --fuzzy
-          fi
+          keys_url = os.environ.get("KEYS_URL")
+          game_url = os.environ.get("GAME_URL")
+          update_url = os.environ.get("UPDATE_URL")
 
-          # Download Game Update NSP
-          if [ -n "${{ secrets.UPDATE_URL }}" ]; then
-            python3 -m gdown "${{ secrets.UPDATE_URL }}" -O workspace/update.nsp --fuzzy
-          fi
+          if keys_url:
+              print("Downloading prod.keys...")
+              gdown.download(keys_url, "keys/prod.keys", fuzzy=True)
+
+          if game_url:
+              print("Downloading base game NSP/XCI...")
+              gdown.download(game_url, "workspace/base.nsp", fuzzy=True)
+
+          if update_url:
+              print("Downloading game update NSP...")
+              gdown.download(update_url, "workspace/update.nsp", fuzzy=True)
+          EOF
 
       - name: Run NX2Apple Build Script
         run: |
