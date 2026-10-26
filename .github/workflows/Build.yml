@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-ipa:
-    runs-on: macos-15  # (You can use macos-13 or macos-15 if preferred)
+    runs-on: macos-14  # (You can use macos-13 or macos-15 if preferred)
     
     steps:
       - name: Checkout Repository
