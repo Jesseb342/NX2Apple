@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-ipa:
-    runs-on: macos-15  # Explicitly using the macOS 14 runner pool
+    runs-on: macos-15  # (You can use macos-13 or macos-15 if preferred)
     
     steps:
       - name: Checkout Repository
@@ -16,8 +16,10 @@ jobs:
           brew install xcodegen zstd spirv-cross glslang
           brew install --cask dotnet-sdk
 
-      - name: Set up Python Dependencies
+      - name: Set up Python Virtual Environment & Dependencies
         run: |
+          python3 -m venv venv
+          source venv/bin/activate
           python3 -m pip install --upgrade pip
           python3 -m pip install gdown lz4 capstone fonttools nsz
           python3 -m pip install "backports.zstd; python_version < '3.14'"
@@ -28,6 +30,8 @@ jobs:
 
       - name: Download Files from Google Drive Secrets
         run: |
+          source venv/bin/activate
+          
           # Download prod.keys
           if [ -n "${{ secrets.KEYS_URL }}" ]; then
             python3 -m gdown "${{ secrets.KEYS_URL }}" -O keys/prod.keys --fuzzy
@@ -45,6 +49,7 @@ jobs:
 
       - name: Run NX2Apple Build Script
         run: |
+          source venv/bin/activate
           python3 scripts/build_ipa_from_nsp.py workspace -k keys/prod.keys
 
       - name: Upload Built IPA Artifact
