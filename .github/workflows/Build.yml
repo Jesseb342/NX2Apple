@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-ipa:
-    runs-on: macos-latest
+    runs-on: macos-14  # Explicitly using the macOS 14 runner pool
     
     steps:
       - name: Checkout Repository
