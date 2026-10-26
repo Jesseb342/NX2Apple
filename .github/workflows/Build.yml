@@ -45,15 +45,15 @@ jobs:
 
           if keys_url:
               print("Downloading prod.keys...")
-              gdown.download(keys_url, "keys/prod.keys", fuzzy=True)
+              gdown.download(keys_url, "keys/prod.keys")
 
           if game_url:
               print("Downloading base game NSP/XCI...")
-              gdown.download(game_url, "workspace/base.nsp", fuzzy=True)
+              gdown.download(game_url, "workspace/base.nsp")
 
           if update_url:
               print("Downloading game update NSP...")
-              gdown.download(update_url, "workspace/update.nsp", fuzzy=True)
+              gdown.download(update_url, "workspace/update.nsp")
           EOF
 
       - name: Run NX2Apple Build Script
