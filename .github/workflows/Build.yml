@@ -66,6 +66,23 @@ jobs:
           source venv/bin/activate
           python3 scripts/build_ipa_from_nsp.py workspace -k keys/prod.keys
 
+      - name: Pack RomFS Shards
+        run: |
+          source venv/bin/activate
+          
+          # Dynamically locate the extracted romfs directory inside the build workspace
+          ROMFS_SRC=$(find workspace/*_build -type d -name "romfs" | head -n 1)
+          
+          echo "Found RomFS source at: $ROMFS_SRC"
+          
+          if [ -n "$ROMFS_SRC" ] && [ -d "$ROMFS_SRC" ]; then
+            mkdir -p workspace/romfs
+            python3 dm/tools/romfs_arc.py pack "$ROMFS_SRC" --shard-mib 200 -o workspace/romfs
+          else
+            echo "Error: RomFS source directory not found!"
+            exit 1
+          fi
+
       - name: Upload Complete Build & RomFS Assets
         uses: actions/upload-artifact@v4
         with:
