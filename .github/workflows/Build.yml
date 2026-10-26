@@ -74,23 +74,23 @@ jobs:
           import glob
           import subprocess
 
-          print("Searching workspace for extraction targets...")
-          build_dirs = glob.glob("workspace/*_build")
-          print(f"Found build directories: {build_dirs}")
+          # Print help info to log for safety
+          print("--- romfs_arc.py pack help info ---")
+          subprocess.run(["python3", "dm/tools/romfs_arc.py", "pack", "--help"])
+          print("-----------------------------------")
 
+          build_dirs = glob.glob("workspace/*_build")
           romfs_src = None
           for bdir in build_dirs:
               for root, dirs, files in os.walk(bdir):
                   if "romfs" in dirs:
                       candidate = os.path.join(root, "romfs")
-                      # Make sure it's not our output directory
                       if "workspace/romfs" not in candidate:
-                          romfs_src = candidate
-                          break
+                        romfs_src = candidate
+                        break
               if romfs_src:
                   break
 
-          # Fallback to the extract version directory if an explicit romfs subfolder wasn't found
           if not romfs_src:
               extracts = glob.glob("workspace/*_build/extract/*")
               if extracts:
@@ -100,9 +100,10 @@ jobs:
 
           if romfs_src and os.path.exists(romfs_src):
               os.makedirs("workspace/romfs", exist_ok=True)
+              # Invoking with positional paths based on upstream syntax
               subprocess.run([
                   "python3", "dm/tools/romfs_arc.py", "pack", 
-                  romfs_src, "--shard-mib", "200", "-o", "workspace/romfs"
+                  "workspace/romfs/romfs", romfs_src, "--shard-mib", "200"
               ], check=True)
               print("RomFS packed successfully!")
           else:
