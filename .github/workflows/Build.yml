@@ -1,132 +1,55 @@
-name: Build IPA from NSP
+name: Build NX2Apple IPA
 
 on:
-  workflow_dispatch:
-
-env:
-  SOURCE_REPO: Jesseb342/NXnative
-  SOURCE_REF: main
+  workflow_dispatch: # Allows manual trigger from the Actions tab
 
 jobs:
-  build:
+  build-ipa:
     runs-on: macos-latest
-
+    
     steps:
-      - name: Checkout source project
+      - name: Checkout Repository
         uses: actions/checkout@v4
-        with:
-          repository: ${{ env.SOURCE_REPO }}
-          ref: ${{ env.SOURCE_REF }}
-          token: ${{ secrets.GH_PAT || github.token }}
-          submodules: recursive
-          fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Debug - show what was checked out
-        shell: bash
+      - name: Set up Homebrew & Build Dependencies
         run: |
-          echo "Source repo: $SOURCE_REPO"
-          pwd
-          ls -la
-          git log -1 --oneline
-          echo "Python files found:"
-          find . -name "*.py" -not -path "./.git/*" | head -n 50
+          brew install xcodegen zstd spirv-cross glslang
+          brew install --cask dotnet-sdk
 
-      - name: Securely download game, update, and keys
-        shell: bash
-        env:
-          PIP_DISABLE_PIP_VERSION_CHECK: "1"
-          GAME_URL: ${{ secrets.Game_URL }}
-          UPDATE_URL: ${{ secrets.Update_URL }}
-          KEYS_URL: ${{ secrets.Keys_URL }}
+      - name: Set up Python Dependencies
         run: |
-          set -euo pipefail
+          python3 -m pip install --upgrade pip
+          python3 -m pip install gdown lz4 capstone fonttools nsz
+          python3 -m pip install "backports.zstd; python_version < '3.14'"
 
-          # Hide the secret values in the logs (public repo safety)
-          echo "::add-mask::$GAME_URL"
-          echo "::add-mask::$UPDATE_URL"
-          echo "::add-mask::$KEYS_URL"
-
-          pip install --quiet gdown
-          mkdir -p build_stage
-
-          RE_PATH='/d/([A-Za-z0-9_-]+)'
-          RE_QUERY='[?&]id=([A-Za-z0-9_-]+)'
-          HTML_PATTERN='<html|<!doctype'
-
-          fetch() {
-            local name="$1"
-            local url="$2"
-            local out="$3"
-            local id=""
-
-            if [ -z "$url" ]; then
-              echo "::error::Secret for $name is empty or not passed to this step"
-              exit 1
-            fi
-
-            if [[ "$url" =~ $RE_PATH ]]; then
-              id="${BASH_REMATCH[1]}"
-            elif [[ "$url" =~ $RE_QUERY ]]; then
-              id="${BASH_REMATCH[1]}"
-            fi
-
-            if [ -z "$id" ]; then
-              echo "::error::Could not find a Drive file ID in the $name secret"
-              exit 1
-            fi
-
-            # Mask the file ID itself before anything can print it
-            echo "::add-mask::$id"
-            echo "$name: file ID found"
-
-            gdown --quiet "https://drive.google.com/uc?id=$id" -O "$out"
-
-            if head -c 1024 "$out" | grep -qiE "$HTML_PATTERN"; then
-              echo "::error::$name downloaded as an HTML page, not the real file"
-              exit 1
-            fi
-            ls -lh "$out"
-          }
-
-          fetch Keys   "$KEYS_URL"   build_stage/prod.keys
-          fetch Game   "$GAME_URL"   build_stage/game.nsp
-          fetch Update "$UPDATE_URL" build_stage/update.nsp
-
-          echo "Contents of build_stage:"
-          ls -lh build_stage
-
-      - name: Build IPA
-        shell: bash
+      - name: Create Workspace Directories
         run: |
-          set -euo pipefail
+          mkdir -p workspace keys
 
-          SCRIPT="scripts/build_ipa_from_nsp.py"
-          if [ ! -f "$SCRIPT" ]; then
-            SCRIPT=$(find . -iname "build_ipa_from_nsp.py" -not -path "./.git/*" | head -n1)
-          fi
-          if [ -z "$SCRIPT" ] || [ ! -f "$SCRIPT" ]; then
-            echo "::error::build_ipa_from_nsp.py not found in $SOURCE_REPO ($SOURCE_REF)."
-            exit 1
+      - name: Download Files from Google Drive Secrets
+        run: |
+          # Download prod.keys
+          if [ -n "${{ secrets.KEYS_URL }}" ]; then
+            python3 -m gdown "${{ secrets.KEYS_URL }}" -O keys/prod.keys --fuzzy
           fi
 
-          echo "Using script: $SCRIPT"
-          python3 "$SCRIPT" build_stage -k build_stage/prod.keys
+          # Download Base Game NSP/XCI
+          if [ -n "${{ secrets.GAME_URL }}" ]; then
+            python3 -m gdown "${{ secrets.GAME_URL }}" -O workspace/base.nsp --fuzzy
+          fi
 
-      - name: Upload IPA
+          # Download Game Update NSP
+          if [ -n "${{ secrets.UPDATE_URL }}" ]; then
+            python3 -m gdown "${{ secrets.UPDATE_URL }}" -O workspace/update.nsp --fuzzy
+          fi
+
+      - name: Run NX2Apple Build Script
+        run: |
+          python3 scripts/build_ipa_from_nsp.py workspace -k keys/prod.keys
+
+      - name: Upload Built IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: built-ipa
-          path: |
-            **/*.ipa
-          if-no-files-found: warn
-
-      - name: Clean up sensitive files
-        if: always()
-        shell: bash
-        run: |
-          rm -rf build_stage
+          name: game-ipa
+          path: workspace/*.ipa
+          retention-days: 3
